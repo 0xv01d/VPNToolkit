@@ -1,0 +1,281 @@
+#!/bin/bash
+
+# Colors
+
+greenColor="\e[0;32m\033[1m"
+endColor="\033[0m\e[0m"
+redColor="\e[0;31m\033[1m"
+blueColor="\e[0;34m\033[1m"
+yellowColor="\e[0;33m\033[1m"
+purpleColor="\e[0;35m\033[1m"
+turquoiseColor="\e[0;36m\033[1m"
+grayColor="\e[0;37m\033[1m"
+
+HOME="$HOME/.vpns"
+SCRIPT_NAME="$(echo $0 | awk '{print $NF}' FS='/')"
+
+trap ctrl_c INT
+
+function ctrl_c(){
+    echo -e "${redColor}Saliendo...${endColor}"
+}
+
+function helpPanel(){
+    echo -e "\n${grayColor}Usage: sudo ${SCRIPT_NAME} [OPTIONS]...${endColor}"
+    echo -e "\n${grayColor}Options: ${endColor}"
+    echo -e "\n${turquoiseColor}[-s]${endColor}${grayColor}\t Startup (Create the .vpns directory)${endColor}"
+    echo -e "${turquoiseColor}[-u]${endColor}${grayColor}\t Up VPN${endColor}"
+    echo -e "${turquoiseColor}[-d]${endColor}${grayColor}\t Down VPN${endColor}"
+    echo -e "${turquoiseColor}[-n]${endColor}${grayColor}\t VPN name/pattern${endColor}"
+    echo -e "${turquoiseColor}[-a]${endColor}${grayColor}\t Add VPN${endColor}"
+    echo -e "${turquoiseColor}[-r]${endColor}${grayColor}\t Remove VPN${endColor}"
+    echo -e "${turquoiseColor}[-l]${endColor}${grayColor}\t List VPNs${endColor}"
+    echo -e "${turquoiseColor}[-h]${endColor}${grayColor}\t Help Panel${endColor}"
+    echo -e "${turquoiseColor}[-c]${endColor}${grayColor}\t Clean Logs${endColor}"
+    echo -e "${turquoiseColor}[-f]${endColor}${grayColor}\t Show Log${endColor}"
+    echo -e "${turquoiseColor}[-k]${endColor}${grayColor}\t Check VPN Status${endColor}"
+    echo -e "${turquoiseColor}[-o]${endColor}${grayColor}\t Rotate Logs${endColor}"
+    echo -e "${turquoiseColor}[-b]${endColor}${grayColor}\t Backup VPNs${endColor}"
+    echo -e "${turquoiseColor}[-p]${endColor}${grayColor}\t Restore VPNs${endColor}"
+    echo -e "\n${grayColor}Examples:${endColor}\n"
+    echo -e "${grayColor}Create .vpns directory:${endColor}${greenColor}\t\t\tsudo ${SCRIPT_NAME}${endColor} ${grayColor}-s${endColor}"
+    echo -e "${grayColor}Turn on VPN:${endColor}${greenColor}\t\t\t\tsudo ${SCRIPT_NAME}${endColor} ${grayColor}-un${endColor} ${yellowColor}'vpn_name/vpn_pattern'${endColor}"
+    echo -e "${grayColor}Turn on VPN with OpenVPN options:${endColor}${yellowColor}\texport${endColor}${grayColor} VPNARGS=${endColor}${yellowColor}'--option1 arg1 --option2 arg2...'${endColor}${grayColor};${endColor} ${greenColor}sudo${endColor} ${grayColor}-E${endColor} ${greenColor}${SCRIPT_NAME}${endColor} ${grayColor}-u -n${endColor} ${yellowColor}'vpn_name/vpn_pattern'${endColor}"
+    echo -e "${grayColor}Turn off VPN:${endColor}${greenColor}\t\t\t\tsudo ${SCRIPT_NAME}${endColor} ${grayColor}-d${endColor}"
+    echo -e "${grayColor}Add VPN:${endColor}${greenColor}\t\t\t\tsudo ${SCRIPT_NAME}${endColor} ${grayColor}-a${endColor} ${yellowColor}'vpn_path'${endColor}"
+    echo -e "${grayColor}Remove VPN:${endColor}${greenColor}\t\t\t\tsudo ${SCRIPT_NAME}${endColor} ${grayColor}-r${endColor} ${yellowColor}'vpn_name'${endColor}"
+    echo -e "${grayColor}List available VPNs:${endColor}${greenColor}\t\t\tsudo ${SCRIPT_NAME}${endColor} ${grayColor}-l${endColor}"
+    echo -e "${grayColor}Clean logs:${endColor}${greenColor}\t\t\t\tsudo ${SCRIPT_NAME}${endColor} ${grayColor}-c${endColor}"
+    echo -e "${grayColor}Show log:${endColor}${greenColor}\t\t\t\tsudo ${SCRIPT_NAME}${endColor} ${grayColor}-f${endColor} ${yellowColor}'log_name/log_pattern'${endColor}"
+    echo -e "${grayColor}Check VPN status:${endColor}${greenColor}\t\t\tsudo ${SCRIPT_NAME}${endColor} ${grayColor}-k${endColor}"
+    echo -e "${grayColor}Rotate logs:${endColor}${greenColor}\t\t\t\tsudo ${SCRIPT_NAME}${endColor} ${grayColor}-o${endColor}"
+    echo -e "${grayColor}Backup VPNs:${endColor}${greenColor}\t\t\t\tsudo ${SCRIPT_NAME}${endColor} ${grayColor}-b${endColor}"
+    echo -e "${grayColor}Restore VPNs:${endColor}${greenColor}\t\t\t\tsudo ${SCRIPT_NAME}${endColor} ${grayColor}-p${endColor} ${yellowColor}'backup_file'${endColor}"
+    exit 0
+}
+
+function onVpn() {
+    vpn=$1
+    vpnName="$(ls -l ${HOME} | grep ${vpn} | awk '{print $NF}')"
+
+    if [ -z "$vpnName" ]; then
+        echo -e "\n${redColor} [\u2715] No VPN with name/pattern '$vpn' was found.${endColor}"
+        return 1
+    fi
+
+    path="${HOME}/${vpnName}"
+    logfile="${HOME}/logs/${vpnName%.ovpn}.log"
+
+    # Check if VPNARGS environment variable is set and pass it to openvpn
+    if [ -n "$VPNARGS" ]; then
+        echo -e "\n${greenColor} [\u2713] ${endColor}${purpleColor}VPNARGS${endColor}${grayColor}:${endColor} ${yellowColor} $VPNARGS ${endColor}"
+        openvpn --config "${path}" $VPNARGS > "${logfile}" & disown
+    else
+        openvpn "${path}" > "${logfile}" & disown
+    fi
+
+    if [ $? -eq 0 ]; then
+        echo -e "\n${greenColor} [\u2713] ${endColor}${grayColor}${vpnName}${endColor} ${yellowColor}Setted Up.${endColor}"
+    else
+        echo -e "\n${redColor} [\u2715] Something went wrong.${endColor}"
+    fi
+
+    echo -e "\n${greenColor} Log file saved.${endColor}"
+    echo -e "\n${greenColor} [\u2713] ${endColor}${turquoiseColor}${logfile}${endColor}\n"
+
+    echo -e "${grayColor}"
+    read -p "Do you want to print the log file? (y/N): " print_log
+    echo -e "${endColor}"
+    if [[ "$print_log" =~ ^[Yy]$ ]]; then
+        if command -v bat &>/dev/null; then
+            echo -e "\n"
+            bat -l asm -p "${logfile}"
+        else
+            echo -e "\n\n"
+            cat "${logfile}"
+        fi
+    fi
+}
+
+
+function offVpn(){
+    pkill openvpn &>/dev/null
+    if [ $? -eq 0 ]; then
+        echo -e "\n${greenColor} [\u2713] ${endColor}${blueColor}Done.${endColor}"
+    else
+        echo -e "\n${redColor} [\u2715] Something went wrong.${endColor}"
+    fi
+}
+
+function listVpn(){
+    echo -e "${yellowColor}\n\t    Available VPN's\n\n${endColor}${blueColor}$(ls -l ${HOME} | awk '{print "\t" $NF}' | grep '.ovpn')${endColor}"
+}
+
+function startup(){
+    if [ -d ${HOME} ]; then
+        echo -e "\n${redColor} [\u2715] The ~/.vpns directory already exists.${endColor}"
+    else
+        mkdir -p "${HOME}/logs"
+        if [ $? -eq 0 ]; then
+            echo -e "\n${greenColor} [\u2713] ${endColor}${blueColor}Your vpn directory has been created at ${HOME}.${endColor}"
+        else
+            echo -e "\n${redColor} [\u2715] Something went wrong.${endColor}"
+        fi
+    fi
+}
+
+function loadVpn(){
+    vpn_path=$1
+    mv "${vpn_path}" "${HOME}"
+    if [ $? -eq 0 ]; then
+        echo -e "\n${greenColor} [\u2713] ${endColor}${blueColor}VPN added to ${HOME}.${endColor}"
+    else
+        echo -e "\n${redColor} [\u2715] No VPN was found.${endColor}"
+    fi
+}
+
+function removeVpn(){
+    vpn=$1
+    vpn_name="$(ls -l ${HOME} | grep ${vpn} | awk '{print $NF}')"
+    rm "${HOME}/${vpn_name}"
+    if [ $? -eq 0 ]; then
+        echo -e "\n${greenColor} [\u2713] ${endColor}${blueColor}${vpn_name} has been removed.${endColor}"
+    else
+        echo -e "\n${redColor} [\u2715] No VPN was found.${endColor}"
+    fi
+}
+
+function cleanLogs(){
+    rm -rfd "${HOME}/logs/"
+
+    if [ $? -eq 0 ]; then
+        echo -e "\n${greenColor} [\u2713] ${endColor}${blueColor}Logs cleaned.${endColor}"
+    else
+        echo -e "\n${redColor} [\u2715] Something went wrong.${endColor}"
+    fi
+
+    mkdir "${HOME}/logs"
+}
+
+function showLog(){
+    log=$1
+    if [ -z "${log}" ]; then
+        log_file="$(ls -t ${HOME}/logs/ | head -1)"
+    else
+        log_file="$(ls ${HOME}/logs/ | grep ${log})"
+    fi
+
+    if [ -z "${log_file}" ]; then
+        echo -e "\n${redColor} [\u2715] No log with name/pattern '${log}' was found.${endColor}"
+        return 1
+    fi
+
+    logfile="${HOME}/logs/${log_file}"
+    if command -v bat &>/dev/null; then
+        bat -l asm -p "${logfile}"
+    else
+        cat "${logfile}"
+    fi
+}
+
+function vpnStatus(){
+    if pgrep openvpn > /dev/null; then
+        echo -e "\n${greenColor} [\u2713] ${endColor}${blueColor}VPN is currently running.${endColor}"
+    else
+        echo -e "\n${redColor} [\u2715] ${endColor}${blueColor}VPN is not running.${endColor}"
+    fi
+}
+
+function rotateLogs(){
+    find "${HOME}/logs/" -type f -name '*.log' -exec mv {} {}.1 \;
+    echo -e "\n${greenColor} [\u2713] ${endColor}${blueColor}Logs rotated.${endColor}"
+}
+
+function backupVpns(){
+    tar -czvf "${HOME}/vpn_backup_$(date +%F).tar.gz" -C "${HOME}" .
+    echo -e "\n${greenColor} [\u2713] ${endColor}${blueColor}VPN configurations backed up.${endColor}"
+}
+
+function restoreVpns(){
+    backup_file=$1
+    if [ -f "${backup_file}" ]; then
+        tar -xzvf "${backup_file}" -C "${HOME}"
+        echo -e "\n${greenColor} [\u2713] ${endColor}${blueColor}VPN configurations restored.${endColor}"
+    else
+        echo -e "\n${redColor} [\u2715] ${endColor}${blueColor}Backup file not found.${endColor}"
+    fi
+}
+
+if [ "$(id -u)" == '0' ]; then
+
+    current_user="$SUDO_USER"
+    HOME="/home/$current_user/.vpns"
+
+    declare -i parameter_counter=0
+    vpn='vpn'
+    state='state'
+    while getopts "n:udlscf:karhobp:" arg; do
+        case $arg in
+            n) vpn=$OPTARG; let parameter_counter++ ;;
+            u) let parameter_counter++ ;;
+            d) let parameter_counter=3 ;;
+            l) let parameter_counter=4 ;;
+            s) let parameter_counter=5 ;;
+            c) let parameter_counter=6 ;;
+            a) vpn_path=$OPTARG; let parameter_counter=7 ;;
+            r) vpn_name=$OPTARG; let parameter_counter=8 ;;
+            f) log_name=$OPTARG; let parameter_counter=9 ;;
+            k) let parameter_counter=10 ;;
+            o) let parameter_counter=11 ;;
+            b) let parameter_counter=12 ;;
+            p) backup_file=$OPTARG; let parameter_counter=13 ;;
+            h) helpPanel ;;
+        esac
+    done
+
+    if [ $parameter_counter -gt 1 ] && [ $parameter_counter -lt 14 ]; then
+        if [ $parameter_counter -eq 2 ]; then
+            onVpn $vpn
+            exit 0
+        elif [ $parameter_counter -eq 3 ]; then
+            offVpn
+            exit 0
+        elif [ $parameter_counter -eq 4 ]; then
+            listVpn
+            exit 0
+        elif [ $parameter_counter -eq 5 ]; then
+            startup
+            exit 0
+        elif [ $parameter_counter -eq 6 ]; then
+            cleanLogs
+            exit 0
+        elif [ $parameter_counter -eq 7 ]; then
+            loadVpn $vpn_path
+            exit 0
+        elif [ $parameter_counter -eq 8 ]; then
+            removeVpn $vpn_name
+            exit 0
+        elif [ $parameter_counter -eq 9 ]; then
+            showLog $log_name
+            exit 0
+        elif [ $parameter_counter -eq 10 ]; then
+            vpnStatus
+            exit 0
+        elif [ $parameter_counter -eq 11 ]; then
+            rotateLogs
+            exit 0
+        elif [ $parameter_counter -eq 12 ]; then
+            backupVpns
+            exit 0
+        elif [ $parameter_counter -eq 13 ]; then
+            restoreVpns $backup_file
+            exit 0
+        else
+            helpPanel
+        fi
+    else
+        helpPanel
+    fi
+else
+    echo -e "${redColor}\n [*] Try as root.${endColor}"
+fi
