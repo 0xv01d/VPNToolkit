@@ -214,7 +214,7 @@ if [ "$(id -u)" == '0' ]; then
     declare -i parameter_counter=0
     vpn='vpn'
     state='state'
-    while getopts "n:udlscf:karhobp:" arg; do
+    while getopts "n:udlscf:ka:r:hobp:" arg; do
         case $arg in
             n) vpn=$OPTARG; let parameter_counter++ ;;
             u) let parameter_counter++ ;;
